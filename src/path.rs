@@ -14,7 +14,6 @@ pub struct Path<'a> {
     pub esc: bool,
     pub pat: bool,
     pub sep: u8,
-    pub marg: usize,
     pub extra: &'a [u8],
 }
 
@@ -29,8 +28,7 @@ impl<'a> Path<'a> {
             esc: false,
             pat: false,
             sep: 0,
-            marg: 0,
-        };
+            };
         path_next(&path)
     }
     pub fn is_modifier(&self) -> bool {
@@ -177,14 +175,14 @@ impl<'a> Default for Path<'a> {
     }
 }
 
-impl<'a> std::fmt::Display for Path<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+impl<'a> core::fmt::Display for Path<'a> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         write!(
             f,
             "Path: comp={}, sep={}, extra={}",
-            String::from_utf8_lossy(self.comp),
+            alloc::string::String::from_utf8_lossy(self.comp),
             self.sep as char,
-            String::from_utf8_lossy(self.extra),
+            alloc::string::String::from_utf8_lossy(self.extra),
         )
     }
 }
@@ -230,7 +228,6 @@ fn path_next_query<'a>(path: &Path<'a>) -> Path<'a> {
         esc: false,
         pat: false,
         sep: sep,
-        marg: 0,
         extra: extra,
     };
     if path.comp[path.comp.len() - 1] == b'#' {
@@ -262,7 +259,6 @@ fn path_next_multipath<'a>(path: &Path<'a>) -> Path<'a> {
         esc: false,
         pat: false,
         sep: sep,
-        marg: 0,
         extra: &path.extra[s..],
     }
 }
@@ -274,7 +270,6 @@ fn path_next<'a>(path: &Path<'a>) -> Path<'a> {
     let mut esc = false;
     let mut pat = false;
     let mut modi = false;
-    let mut marg = 0;
     if path.extra.len() > 0 {
         if path.extra[0] == b'@' {
             modi = true;
@@ -297,7 +292,6 @@ fn path_next<'a>(path: &Path<'a>) -> Path<'a> {
             i += 1;
             continue;
         } else if modi && path.extra[i] == b':' {
-            marg = i;
             i += 1;
             if i == path.extra.len() {
                 break;
@@ -338,14 +332,15 @@ fn path_next<'a>(path: &Path<'a>) -> Path<'a> {
         esc: esc,
         pat: pat,
         sep: sep,
-        marg: marg,
         extra: &path.extra[i..],
     }
 }
 
 #[cfg(test)]
 mod test {
+    extern crate std;
     use super::*;
+    use alloc::format;
 
     fn assert_path(path: &Path, comp: &str, sep: char, esc: bool, pat: bool) {
         assert_eq!(tostr(path.comp), comp);

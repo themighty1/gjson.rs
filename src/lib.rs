@@ -2,19 +2,23 @@
 // Use of this source code is governed by an MIT-style
 // license that can be found in the LICENSE file.
 
-mod modifiers;
-mod multipath;
+#![no_std]
+
+extern crate alloc;
+
 mod path;
-mod pretty;
+#[cfg(test)]
 mod test;
-/// Additional tools for working with JSON data.
-pub mod tools;
 mod util;
 mod valid;
 
+use alloc::borrow::ToOwned;
+use alloc::format;
+use alloc::string::String;
+use alloc::vec::Vec;
+use core::cmp::Ordering;
+use core::fmt;
 use path::*;
-use std::cmp::Ordering;
-use std::fmt;
 use util::{pmatch, tostr, unescape};
 pub use valid::valid;
 
@@ -1032,10 +1036,6 @@ pub fn get<'a>(json: &'a str, path: &'a str) -> Value<'a> {
         if lines {
             let res = get_arr(json, 0, true, path);
             (res.0, res.2)
-        } else if path.is_modifier() {
-            modifiers::exec(json, path)
-        } else if path.is_multipath() {
-            multipath::exec(json, path)
         } else {
             let mut i = 0;
             loop {

@@ -5,8 +5,8 @@
 // Bit flags passed to the "info" parameter of the iter function which
 // provides additional information about the data
 
-use std::char;
-use std::mem;
+use alloc::string::String;
+use alloc::vec::Vec;
 
 /// tostr transmutes a byte slice to a string reference. This function must
 /// only be used on path components and json data which originated from the
@@ -17,7 +17,7 @@ pub fn tostr<'a>(v: &'a [u8]) -> &'a str {
     // SAFETY: All slices to the json and path data during the get()
     // operation are done at ascii codepoints which ensuring that the
     // conversion is safe.
-    unsafe { std::str::from_utf8_unchecked(v) }
+    unsafe { core::str::from_utf8_unchecked(v) }
 }
 
 pub fn trim<'a>(mut bin: &'a [u8]) -> &'a [u8] {
@@ -74,7 +74,7 @@ pub fn unescape(json: &str) -> String {
                             i += 6
                         }
                     }
-                    let ch = char::from_u32(r).unwrap_or(char::REPLACEMENT_CHARACTER);
+                    let ch = core::char::from_u32(r).unwrap_or(core::char::REPLACEMENT_CHARACTER);
                     let mark = out.len();
                     for _ in 0..10 {
                         out.push(0);
@@ -90,7 +90,7 @@ pub fn unescape(json: &str) -> String {
         }
         i += 1;
     }
-    unsafe { mem::transmute::<Vec<u8>, String>(out) }
+    unsafe { String::from_utf8_unchecked(out) }
 }
 
 fn utf16_is_surrogate(r: u32) -> bool {
@@ -122,43 +122,6 @@ fn utf16_decode(r1: u32, r2: u32) -> u32 {
 //     }
 //     return false;
 // }
-
-pub fn extend_json_string(out: &mut Vec<u8>, s: &[u8]) {
-    out.push(b'"');
-    for i in 0..s.len() {
-        if s[i] < b' ' || s[i] == b'\n' || s[i] == b'\\' || s[i] == b'"' {
-            out.push(b'\\');
-            match s[i] {
-                b'"' => out.push(b'"'),
-                b'\\' => out.push(b'\\'),
-                8 => out.push(b'b'),
-                12 => out.push(b'f'),
-                b'\n' => out.push(b'n'),
-                b'\r' => out.push(b'r'),
-                b'\t' => out.push(b't'),
-                _ => {
-                    out.push(b'u');
-                    out.push(b'0');
-                    out.push(b'0');
-                    let h = s[i] >> 4;
-                    out.push(if h < 10 { h + b'0' } else { (h - 10) + b'A' });
-                    let l = s[i] & 0xF;
-                    out.push(if l < 10 { l + b'0' } else { (l - 10) + b'A' });
-                }
-            }
-        } else {
-            out.push(s[i]);
-        }
-    }
-    out.push(b'"');
-}
-
-// escape a json string. includes the
-pub fn escape(s: &str) -> String {
-    let mut out = Vec::with_capacity(s.len());
-    extend_json_string(&mut out, s.as_bytes());
-    unsafe { std::mem::transmute::<Vec<u8>, String>(out) }
-}
 
 /// pmatch returns true if str matches pattern. This is a very
 /// simple wildcard match where '*' matches on any number characters
@@ -242,29 +205,6 @@ mod test {
         let pattern = ",**********************************************{**\",**,,**,**,**,**,\"\",**,**,**,**,**,**,**,**,**,**]";
         super::pmatch(pattern, string);
     }
-    #[test]
-    fn escape() {
-        let text = r#"
-第一印象:なんか怖っ！
-今の印象:とりあえずキモい。噛み合わない
-好きなところ:ぶすでキモいとこ😋✨✨
-思い出:んーーー、ありすぎ😊❤️
-LINE交換できる？:あぁ……ごめん✋
-トプ画をみて:照れますがな😘✨
-一言:お前は一生もんのダチ💖"#;
-
-        let raw1 = r#""\n第一印象:なんか怖っ！\n今の印象:とりあえずキモい。噛み合わない\n好きなところ:ぶすでキモいとこ😋✨✨\n思い出:んーーー、ありすぎ😊❤️\nLINE交換できる？:あぁ……ごめん✋\nトプ画をみて:照れますがな😘✨\n一言:お前は一生もんのダチ💖""#;
-        let raw2 = r#""\n\u7B2C\u4E00\u5370\u8C61:\u306A\u3093\u304B\u6016\u3063\uFF01\n\u4ECA\u306E\u5370\u8C61:\u3068\u308A\u3042\u3048\u305A\u30AD\u30E2\u3044\u3002\u565B\u307F\u5408\u308F\u306A\u3044\n\u597D\u304D\u306A\u3068\u3053\u308D:\u3076\u3059\u3067\u30AD\u30E2\u3044\u3068\u3053\uD83D\uDE0B\u2728\u2728\n\u601D\u3044\u51FA:\u3093\u30FC\u30FC\u30FC\u3001\u3042\u308A\u3059\u304E\uD83D\uDE0A\u2764\uFE0F\nLINE\u4EA4\u63DB\u3067\u304D\u308B\uFF1F:\u3042\u3041\u2026\u2026\u3054\u3081\u3093\u270B\n\u30C8\u30D7\u753B\u3092\u307F\u3066:\u7167\u308C\u307E\u3059\u304C\u306A\uD83D\uDE18\u2728\n\u4E00\u8A00:\u304A\u524D\u306F\u4E00\u751F\u3082\u3093\u306E\u30C0\u30C1\uD83D\uDC96""#;
-        assert_eq!(text, super::unescape(raw1));
-        assert_eq!(text, super::unescape(raw2));
-        assert_eq!(super::escape(&text), raw1);
-
-        assert_eq!(
-            super::escape("ad\"\\/\u{08}\u{0C}\n\r\t\u{00}sf"),
-            r#""ad\"\\/\b\f\n\r\t\u0000sf""#
-        );
-    }
-
     #[test]
     fn unescape() {
         assert_eq!(super::unescape(r#""adsf"#), "");
